@@ -1,0 +1,444 @@
+================================================================================
+QA WORKBENCH — PRODUCT & TECHNICAL STACK DOCUMENT
+================================================================================
+Version: 1.1
+Date:    2026-04-14
+Author:  tevukas
+--------------------------------------------------------------------------------
+
+
+PRODUCT OVERVIEW
+----------------
+
+QA Workbench is a personal, offline Chrome browser extension designed for
+professional software QA engineers. It provides a persistent side panel
+with specialised tools for daily QA workflows — capturing XPaths for test
+automation, documenting bugs with full evidence context, and recording
+user flows that export to Gherkin or C# Selenium skeletons.
+
+No account required. No server. No internet connection needed. Install once,
+use everywhere.
+
+Target user:   Senior QA engineer working with web applications
+Testing stack: Reqnroll (C#) + Page Object Model + BDD (Gherkin)
+Platform:      Chrome (Windows work machine, Linux dev machine)
+Distribution:  Load unpacked via chrome://extensions (private, not published)
+
+
+--------------------------------------------------------------------------------
+TOOLS
+--------------------------------------------------------------------------------
+
+1. XPATH VAULT  (v1.1 — Intelligence Layer added)
+   Purpose:   Capture, organise, and export XPaths from live web pages for
+              use in C# Selenium/Reqnroll Page Object Models.
+
+   Workflow:
+   - Activate inspect mode from the side panel
+   - Extension highlights hovered elements with a blue overlay
+   - Click to capture — up to 5 XPath candidates generated per element
+   - Each candidate is scored 0–100 with a confidence label (HIGH / MED / LOW)
+     and a human-readable reason (e.g. "Unique id attribute — best stability")
+   - Live DOM validation runs at capture time: match count + status badge
+       ✓1 = valid (exactly one match — green)
+       ⚠2 = ambiguous (multiple matches — yellow)
+       ✗  = broken (zero matches — red)
+   - Engineer picks the best candidate; may tick up to 2 runners-up as fallbacks
+   - Named element saved to tree: Project > Page > Element
+   - Revalidate button (↻) on each saved element: re-runs validation against
+     the currently-loaded page on demand
+
+   Scoring:
+     Score 0–100 calculated per candidate.  Base by strategy:
+       id               → 85  (reduced to 40 if non-unique match)
+       data-testid/cy   → 80
+       name attribute   → 65
+       aria-label/role  → 60
+       visible text     → 35  (+warning: fragile if text changes)
+       structural/abs   → 30  (−1 per depth level)
+     Match count modifier:
+       unique match     → +15
+       multiple matches → −15
+       zero matches     → −20  (broken)
+
+   XPath Strategy Priority (same generation order):
+     1. id attribute         → //tag[@id='value']
+     2. data-testid / cy     → //tag[@data-testid='value']
+     3. name attribute       → //tag[@name='value']
+     4. aria-label / role    → //tag[@aria-label='value']
+     5. visible text         → //tag[normalize-space()='x']
+     6. structural position  → //parent/child[n]  or absolute /html/body/...
+
+   Export formats:
+   - Copy raw XPath string to clipboard
+   - Copy C# POM property (with optional fallback comment block):
+       // Fallback XPaths (in priority order):
+       //   //button[@class='btn-login']
+       public IWebElement LoginButton =>
+           _driver.FindElement(By.XPath("//button[@id='login']"));
+   - Export full C# Page Object class as .cs file
+
+
+2. EVIDENCE CAPSULE  (v1.1 — renamed + extended from Bug Capsule)
+   Purpose:   Capture a complete, structured bug report in one click —
+              screenshot, console errors, action timeline, network failures,
+              environment metadata, and reproduction steps.
+
+   Workflow:
+   - Click "Capture Bug" in the header
+   - Screenshot captured automatically (visible tab)
+   - Background collects evidence from the page:
+       • Console errors (up to 50 — ring buffer)
+       • Action timeline (up to 100 events — ring buffer)
+       • Network failures (HTTP responses ≥ 400 seen since page load)
+       • Environment metadata (viewport, DPR, language, online status)
+       • DOM snippet around the last-active element (≤ 1000 chars, sanitised)
+       • Storage keys present in localStorage / sessionStorage (keys only)
+   - Modal opens pre-filled with all evidence
+   - Engineer fills in title, severity, preconditions, steps, expected/actual
+   - Tab label: "Evidence" (was "Bug Capsule")
+
+   Severity levels:  Critical / High / Medium / Low
+
+   Action timeline capture (passive, always running):
+   - event types: click, input/change (text fields), navigate (popstate/hashchange),
+     keydown (Enter, Escape, Tab only)
+   - Each event records: type, description, targetHint (#id / [aria-label] / tag.cls),
+     URL, timestamp
+   - Sensitive fields are skipped entirely (see Privacy section below)
+
+   Network failure capture:
+   - Uses PerformanceResourceTiming.responseStatus (Chrome 109+) at capture time
+   - Records URL, HTTP status, and timestamp for any resource with status ≥ 400
+   - Snapshot only — not a continuous monitor; only failures from page load to
+     the moment "Capture Bug" is pressed are visible
+   - Cannot see: requests that completed before the page loaded, requests to
+     chrome-extension:// URLs, requests with no response (DNS failures, timeout),
+     status codes on cross-origin requests where CORP/CORS blocks timing data
+
+   Export formats:
+   - Copy as HTML (rich clipboard) — embeds screenshot + all evidence sections
+   - Export as self-contained .html file with screenshot inline
+   - Plain text export includes all evidence sections
+
+
+3. STEP RECORDER  (v1.1 — new tool)
+   Purpose:   Record a user flow as an ordered list of steps, then export
+              it as plain text, Gherkin scenario, or C# Selenium method skeleton.
+
+   Workflow:
+   - Open the "Recorder" tab in the side panel
+   - Click "Start Recording" — a REC pill appears in the header; content script
+     starts capturing user interactions
+   - Perform the test flow on the page
+   - Click "Stop" — recording is summarised; engineer gives it a name and saves
+   - Saved recordings appear in a list; click to open detail view
+   - In detail view: edit step descriptions, reorder steps (↑↓), delete steps
+
+   Noise reduction:
+   - Consecutive input events on the same form field are collapsed into one step
+     (prevents "Entered text in #email" × 10 for a single field fill)
+
+   Output modes:
+   - Plain text:  numbered step list with recording name header
+   - Gherkin:     Scenario with Given / When / Then / And keywords
+                  (first step = Given, last step = Then, middle = When/And)
+   - C# Skeleton: full method with [When("...")] attribute, By.XPath() calls,
+                  .Click() for clicks, .SendKeys() for input, SelectByText() for
+                  select elements; TODO comment when a step has no XPath reference
+
+   "Use in Bug" button: pre-fills the Evidence Capsule's steps field from the
+   recording so you don't have to retype a flow you just recorded.
+
+
+--------------------------------------------------------------------------------
+PRIVACY GUARANTEES
+--------------------------------------------------------------------------------
+
+All data is processed and stored exclusively on the local machine.
+Nothing leaves the browser.
+
+WHAT IS NEVER CAPTURED:
+  - Values typed into password fields (type="password")
+  - Values typed into fields whose name, id, or placeholder contains any of:
+    password, token, secret, auth, key, api, credential, passwd, pwd, pass
+  - localStorage / sessionStorage values (keys only are captured, never values)
+  - DOM text content of sensitive fields
+  - Network request or response bodies
+  - Cookies or authentication headers
+
+WHAT IS CAPTURED (locally only):
+  - Click targets, text input events (description: "Entered text in [hint]"),
+    navigation changes, and Enter/Escape/Tab keypresses
+  - HTTP status codes of resources that failed (≥ 400), with URL and timestamp
+  - Screenshots of the visible tab at capture time
+  - Console errors (messages only — no stack frame values for sensitive contexts)
+  - Environment metadata: viewport size, device pixel ratio, browser language,
+    online/offline status, page readyState
+  - Attribute snapshot (non-value attributes) of the last-clicked element
+
+RING BUFFER LIMITS (in-memory, reset on page load):
+  - Action timeline:  last 100 events
+  - Console errors:   last 50 errors
+
+
+--------------------------------------------------------------------------------
+TECH STACK
+--------------------------------------------------------------------------------
+
+RUNTIME & PLATFORM
+  Chrome Extension Manifest V3 (MV3)
+  Chrome Side Panel API (Chrome 114+)
+  Chrome Storage API (chrome.storage.local, unlimitedStorage)
+  Chrome Tabs API (captureVisibleTab, sendMessage)
+  Chrome Scripting API (executeScript, world:'MAIN' for page-level data)
+  Chrome Context Menus API
+  PerformanceResourceTiming.responseStatus (Chrome 109+)
+
+FRONTEND
+  React 18.2          UI framework (functional components + hooks)
+  TypeScript 5.3      Type safety across all components and shared modules
+  CSS Custom Props    Design tokens (no CSS framework — hand-rolled styles)
+
+BUILD
+  Vite 4.5            Bundler
+  Rollup (manual)     Multi-entry build — sidepanel, background, content script
+  Node 18.19 (LTS)    Dev/build environment
+  Note: CRXJS not used — requires Node 20+; manual rollup entries used instead
+  Note: content.js is a self-contained bundle (no ES module imports) — required
+        for MV3 content scripts without "type":"module" in manifest
+
+STORAGE
+  chrome.storage.local   All persistent data (XPaths, capsules, recordings)
+  Base64 data URLs       Screenshots stored inline (no external file system)
+  Storage keys used:
+    xpath_projects        XPath Vault projects/pages/elements
+    bug_capsules          Evidence Capsule list
+    step_recordings       Step Recorder saved recordings
+
+TESTING
+  Vitest 1.6          Test runner (Node 18 compatible)
+  jsdom 24            DOM environment for unit tests (document.evaluate available)
+  @testing-library/react 14   Component testing utilities
+  @testing-library/jest-dom 6 Custom DOM matchers
+  58 tests across 4 suites (all passing)
+
+LANGUAGE TARGET
+  C# / Reqnroll       Export target for XPath Vault and Step Recorder
+  Selenium WebDriver  IWebDriver / By.XPath() output format only
+
+
+--------------------------------------------------------------------------------
+ARCHITECTURE
+--------------------------------------------------------------------------------
+
+  ┌────────────────────────────────────────────────────────────┐
+  │                      CHROME BROWSER                        │
+  │                                                            │
+  │  ┌────────────────────┐     ┌──────────────────────────┐  │
+  │  │   SIDE PANEL        │     │    ACTIVE WEB PAGE        │  │
+  │  │   (React UI)        │◄───►│  ┌─────────────────────┐ │  │
+  │  │                     │     │  │   CONTENT SCRIPT     │ │  │
+  │  │  Tab 1: XPath Vault │     │  │  - Inspect overlay   │ │  │
+  │  │  Tab 2: Evidence    │     │  │  - XPath generation  │ │  │
+  │  │  Tab 3: Recorder    │     │  │  - Action ring buf   │ │  │
+  │  └────────┬────────────┘     │  │  - Console ring buf  │ │  │
+  │           │                  │  │  - Recording capture │ │  │
+  │           ▼                  │  └─────────────────────┘ │  │
+  │  ┌────────────────────┐      │  ┌─────────────────────┐ │  │
+  │  │   BACKGROUND        │      │  │  MAIN WORLD SCRIPT  │ │  │
+  │  │   SERVICE WORKER    │◄────►│  │  (injected on demand│ │  │
+  │  │  - Screenshot        │      │  │  at capture time)   │ │  │
+  │  │  - Message router   │      │  │  - Network failures  │ │  │
+  │  │  - Evidence assembly│      │  │  - Storage keys      │ │  │
+  │  └────────┬────────────┘      │  │  - DOM snippet       │ │  │
+  │           │                   │  │  - Env metadata      │ │  │
+  │           ▼                   │  └─────────────────────┘ │  │
+  │  ┌────────────────────┐       └──────────────────────────┘  │
+  │  │  chrome.storage    │                                      │
+  │  │      .local        │                                      │
+  │  │  xpath_projects    │                                      │
+  │  │  bug_capsules      │                                      │
+  │  │  step_recordings   │                                      │
+  │  └────────────────────┘                                      │
+  └────────────────────────────────────────────────────────────┘
+
+MESSAGE FLOW (v1.1)
+  Side panel → Background:   CAPTURE_BUG, ACTIVATE_INSPECT_MODE,
+                             START_RECORDING, STOP_RECORDING,
+                             VALIDATE_XPATHS
+  Background → Content:      ACTIVATE_INSPECT_MODE, DEACTIVATE_INSPECT_MODE,
+                             GET_EVIDENCE_DATA, VALIDATE_XPATHS,
+                             START_RECORDING, STOP_RECORDING
+  Content → Background:      XPATH_CAPTURED, INSPECT_CANCELLED,
+                             GET_EVIDENCE_DATA (response),
+                             VALIDATE_XPATHS (response),
+                             RECORDING_STEP, RECORDING_STOPPED
+  Background → Side panel:   RECORDING_STEP, RECORDING_STOPPED (rebroadcast)
+  Background → Content:      GET_EVIDENCE_DATA → assembles CapturedBugData
+                             (also executes MAIN world script for page-level data)
+
+
+--------------------------------------------------------------------------------
+PROJECT STRUCTURE
+--------------------------------------------------------------------------------
+
+  qatools/
+  ├── src/
+  │   ├── background/
+  │   │   └── index.ts          Service worker (screenshot, evidence assembly,
+  │   │                         message routing, MAIN world injection)
+  │   ├── content/
+  │   │   └── index.ts          Content script — inspect overlay, action ring
+  │   │                         buffer, recording capture, XPath validation relay
+  │   ├── sidepanel/
+  │   │   ├── App.tsx            Root component, tab state, message listener
+  │   │   ├── App.css            All styles (CSS custom properties)
+  │   │   └── main.tsx           React entry point
+  │   ├── components/
+  │   │   ├── Header.tsx         Tab bar + REC pill indicator
+  │   │   ├── xpath-vault/
+  │   │   │   ├── XPathVault.tsx  Tree browser + revalidate + C# export
+  │   │   │   └── SaveDialog.tsx  Score bar + confidence chips + fallback picks
+  │   │   ├── bug-capsule/
+  │   │   │   ├── BugCapsule.tsx  Capsule list
+  │   │   │   ├── CaptureForm.tsx Capture modal with evidence sections
+  │   │   │   └── CapsuleDetail.tsx Detail view + HTML/text export
+  │   │   └── step-recorder/
+  │   │       └── StepRecorder.tsx Live recording, edit, output modes, list
+  │   ├── store/
+  │   │   ├── xpathStore.ts      chrome.storage CRUD for XPath projects
+  │   │   ├── capsuleStore.ts    chrome.storage CRUD for evidence capsules
+  │   │   └── recorderStore.ts   chrome.storage CRUD for step recordings
+  │   └── shared/
+  │       ├── types.ts           All TypeScript interfaces (v1.1 extended)
+  │       ├── messages.ts        Message type constants
+  │       ├── xpathUtils.ts      XPath generation, scoring, validation (testable)
+  │       └── recorderUtils.ts   Step normalisation, Gherkin/C# export (testable)
+  ├── tests/
+  │   ├── setup.ts
+  │   ├── mocks/
+  │   │   └── chrome.ts          In-memory chrome.storage + message mock
+  │   ├── xpathGeneration.test.ts  27 tests: scoring, validation, candidates, export
+  │   ├── xpathStore.test.ts       9 tests: CRUD + updateElementValidation
+  │   ├── capsuleStore.test.ts     7 tests: save/delete/update + v1 compat
+  │   └── recorderUtils.test.ts   15 tests: normalise, plainText, Gherkin, C#
+  ├── docs/
+  │   ├── PRODUCT.txt
+  │   └── superpowers/
+  │       ├── specs/
+  │       └── plans/
+  ├── public/icons/              Extension icons (16, 32, 48, 128px)
+  ├── dist/                      Built extension — load this folder in Chrome
+  │   ├── manifest.json          (copied from root)
+  │   ├── sidepanel.html
+  │   ├── background.js          ~3.8 kB gzip
+  │   ├── content.js             ~9.3 kB gzip  (self-contained, no imports)
+  │   └── assets/
+  │       ├── sidepanel-*.js     ~180 kB gzip  (React + all UI)
+  │       └── sidepanel-*.css    ~10.8 kB gzip
+  ├── manifest.json              MV3 manifest (v1.1.0)
+  ├── vite.config.ts
+  ├── tsconfig.json
+  └── package.json
+
+
+--------------------------------------------------------------------------------
+PERMISSIONS
+--------------------------------------------------------------------------------
+
+  storage          Read/write chrome.storage.local
+  unlimitedStorage No 10MB cap on storage
+  tabs             Query active tab, capture screenshot
+  activeTab        Access current tab URL + title
+  scripting        Inject content script + MAIN world scripts programmatically
+  contextMenus     Right-click "Save XPath" menu item
+  sidePanel        Open and control the Chrome Side Panel
+  host_permissions All URLs — required for content script and scripting API
+
+
+--------------------------------------------------------------------------------
+BUILD & INSTALL
+--------------------------------------------------------------------------------
+
+  Prerequisites:   Node 18+ (LTS), npm
+
+  Install deps:    npm install
+  Build:           npm run build        → outputs to dist/
+  Test:            npm test             → 58 tests, 4 suites
+  Test (watch):    npm run test:watch
+
+  Load in Chrome:
+    1. Go to chrome://extensions
+    2. Enable Developer mode (top right toggle)
+    3. Click "Load unpacked"
+    4. Select the dist/ folder
+
+  Rebuild after changes:
+    npm run build → reload extension in chrome://extensions
+
+
+--------------------------------------------------------------------------------
+STORAGE IMPLICATIONS
+--------------------------------------------------------------------------------
+
+  Evidence Capsules store more data in v1.1 than v1.0:
+  - actionTimeline: up to 100 events × ~150 bytes ≈ 15 kB per capsule
+  - networkFailures: typically small (URL + status + timestamp per entry)
+  - domSnippet: capped at 1000 chars ≈ 1 kB
+  - environment: ~200 bytes
+
+  Practical impact: a typical capsule with screenshot (base64 PNG) is
+  already 200–500 kB; the evidence fields add ~20 kB at most.
+
+  unlimitedStorage removes the default 10MB cap. In practice storage is
+  bounded by the number of screenshots saved. Delete old capsules to free
+  space.
+
+  Backward compatibility: v1.0 capsules stored without evidence fields
+  deserialise correctly — new optional fields are simply undefined.
+  No migration needed.
+
+
+--------------------------------------------------------------------------------
+KNOWN CONSTRAINTS & LIMITATIONS
+--------------------------------------------------------------------------------
+
+  GENERAL
+  - Node 18 on dev machine prevents use of CRXJS, Vitest 4+, jsdom 29+
+  - Side Panel requires Chrome 114 or newer
+  - No Firefox support (Side Panel API is Chrome-only)
+
+  SCREENSHOTS
+  - Base64 PNG — large screenshots (1440p+) increase storage usage significantly
+  - Only the visible tab area is captured (no full-page scroll capture)
+
+  NETWORK CAPTURE
+  - Uses PerformanceResourceTiming.responseStatus (Chrome 109+)
+  - Snapshot at capture time only — not a continuous monitor
+  - Cannot see: DNS failures, connection timeouts (no response → no timing entry)
+  - Cannot see: requests completed before the page loaded (timing cleared on nav)
+  - Cannot see: chrome-extension:// or other non-http(s) requests
+  - Cannot see: HTTP status on cross-origin opaque responses where the browser
+    restricts timing data (Timing-Allow-Origin header not set by the server)
+  - Cannot intercept or modify request bodies — read-only timing data only
+
+  XPATH VALIDATION
+  - Validation runs in the content script's isolated world
+  - document.evaluate() is available and used for match count
+  - Dynamic pages may show different results on re-validation if the DOM changed
+
+  STEP RECORDER
+  - Captures events from content script's isolated world (document listeners)
+  - Cannot capture interactions inside iframes from different origins
+  - Shadow DOM click targets may show generic tag names instead of stable selectors
+  - Collapsed input events show "Entered text in [hint]" — the actual typed
+    value is not stored
+
+  CONTENT SCRIPT
+  - Runs at document_start on all URLs
+  - Cannot use ES module import syntax (MV3 content scripts without type:module)
+  - Must remain a fully self-contained bundle — shared chunks not supported
+
+
+================================================================================

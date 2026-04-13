@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(npm --version)",
+      "Bash(python3 generate-icons.py)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(zip -r qa-workbench.zip dist/)",
+      "Bash(curl -s --upload-file /home/tevukas/qatools/qa-workbench.zip https://transfer.sh/qa-workbench.zip)",
+      "Bash(curl -s -F \"file=@/home/tevukas/qatools/qa-workbench.zip\" https://file.io)",
+      "Bash(pip3 show:*)",
+      "Bash(npm test:*)",
+      "Bash(zip -r qa-workbench-v1.1.0.zip dist/ manifest.json)",
+      "Bash(gh auth:*)",
+      "Bash(git -C /home/tevukas/qatools status)",
+      "Bash(curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg)",
+      "Bash(sudo dd:*)",
+      "Bash(sudo chmod:*)",
+      "Bash(dpkg --print-architecture)",
+      "Bash(echo \"deb [arch=$\\(dpkg --print-architecture\\) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main\")",
+      "Bash(sudo tee:*)",
+      "Bash(sudo apt-get:*)",
+      "Bash(curl -s -H \"Authorization: token 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\" https://api.github.com/user)",
+      "Bash(curl -s -X POST -H 'Authorization: token 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' -H 'Content-Type: application/json' https://api.github.com/user/repos -d '{\"name\":\"qa-workbench\",\"description\":\"Personal QA toolkit — XPath Vault, Evidence Capsule & Step Recorder\",\"private\":true,\"auto_init\":false}')"
+    ]
+  }
+}
