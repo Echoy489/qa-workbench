@@ -1,0 +1,24 @@
+# Source code (distribution-only repo — built extension is in dist/)
+src/
+tests/
+docs/
+public/
+node_modules/
+
+# Build configs & tooling
+package.json
+package-lock.json
+tsconfig.json
+vite.config.ts
+generate-icons.py
+/sidepanel.html
+/manifest.json
+
+# Release archives
+*.zip
+
+# Local IDE / tool settings
+.claude/
+.vscode/
+*.local.json
+*.log
